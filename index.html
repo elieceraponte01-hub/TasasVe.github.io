@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Divisas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .card {
+            background-color: #212133;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .currency-box {
+            background-color: #2c2c44;
+            border-radius: 15px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .currency-box span {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+        }
+        
+        .currency-box div {
+            flex-grow: 1;
+        }
+        
+        .currency-box .rate {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        .toggle-group {
+            display: flex;
+            justify-content: space-between;
+            background-color: #2c2c44;
+            border-radius: 10px;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .toggle-btn.active {
+            background-color: #4CAF50;
+            color: #ffffff;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group input {
+            background-color: #2c2c44;
+            border: none;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 1rem;
+            width: 100%;
+            font-size: 1.25rem;
+        }
+        
+        .result-box {
+            background-color: #4CAF50;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="container">
+        <div class="card">
+            <h1 class="text-3xl font-bold mb-2 text-center">Tasas de Cambio Venezuela</h1>
+            <p id="last-updated" class="text-sm text-gray-400 text-center mb-4">Cargando fecha...</p>
+            
+            <div class="currency-box">
+                <span>$</span>
+                <div>
+                    <p class="text-gray-400">Dólar</p>
+                    <p id="dolar-rate" class="rate">Bs. --</p>
+                </div>
+            </div>
+
+            <div class="currency-box">
+                <span>€</span>
+                <div>
+                    <p class="text-gray-400">Euro</p>
+                    <p id="euro-rate" class="rate">Bs. --</p>
+                </div>
+            </div>
+
+            <div class="currency-box">
+                <span><i class="fa-solid fa-b"></i></span>
+                <div>
+                    <p class="text-gray-400">Dólar Binance</p>
+                    <p id="binance-rate" class="rate">Bs. --</p>
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-bold mt-6 mb-4 text-center">Calculadora</h2>
+            
+            <div class="toggle-group" id="toggle-group">
+                <div class="toggle-btn active" data-to="Bs">A Bolívares</div>
+                <div class="toggle-btn" data-to="Dolar">Desde Bolívares</div>
+            </div>
+            
+            <div class="input-group">
+                <input type="number" id="amount-input" placeholder="Monto" class="px-4 py-3 w-full bg-gray-700 rounded-lg text-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div id="result-box" class="result-box">
+                Resultado: Bs. 0.00
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // URL de tu Gist con las tasas de cambio en formato JSON.
+        const RATES_URL = 'https://gist.githubusercontent.com/elieceraponte01-hub/459e03b6093f294c6b5b41e44922d604/raw/tasas.json';
+
+        // Elementos de la interfaz de usuario.
+        const dolarRateElem = document.getElementById('dolar-rate');
+        const euroRateElem = document.getElementById('euro-rate');
+        const binanceRateElem = document.getElementById('binance-rate');
+        const lastUpdatedElem = document.getElementById('last-updated');
+        const amountInput = document.getElementById('amount-input');
+        const resultBox = document.getElementById('result-box');
+        const toggleButtons = document.querySelectorAll('.toggle-btn');
+        
+        let rates = {};
+
+        // Función para obtener las tasas desde el Gist.
+        async function fetchRates() {
+            try {
+                // Añade un timestamp para evitar el caché del navegador.
+                const response = await fetch(`${RATES_URL}?t=${new Date().getTime()}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                rates = await response.json();
+                updateUI();
+                saveRates();
+                lastUpdatedElem.textContent = `Tasas de ${new Date().toLocaleDateString()}`;
+            } catch (error) {
+                console.error('Error al obtener las tasas:', error);
+                loadRates();
+                lastUpdatedElem.textContent = 'Modo sin conexión. Tasas no actualizadas.';
+            }
+        }
+
+        // Función para actualizar los elementos de la UI con las tasas.
+        function updateUI() {
+            dolarRateElem.textContent = `Bs. ${rates.dolar.toFixed(2)}`;
+            euroRateElem.textContent = `Bs. ${rates.euro.toFixed(2)}`;
+            binanceRateElem.textContent = `Bs. ${rates.binance.toFixed(2)}`;
+            calculateConversion();
+        }
+
+        // Función para guardar las tasas en el almacenamiento local.
+        function saveRates() {
+            localStorage.setItem('dolarRate', rates.dolar);
+            localStorage.setItem('euroRate', rates.euro);
+            localStorage.setItem('binanceRate', rates.binance);
+            localStorage.setItem('lastUpdated', new Date().toLocaleDateString());
+        }
+
+        // Función para cargar las tasas desde el almacenamiento local.
+        function loadRates() {
+            rates.dolar = parseFloat(localStorage.getItem('dolarRate')) || 0;
+            rates.euro = parseFloat(localStorage.getItem('euroRate')) || 0;
+            rates.binance = parseFloat(localStorage.getItem('binanceRate')) || 0;
+            
+            dolarRateElem.textContent = `Bs. ${rates.dolar.toFixed(2)}`;
+            euroRateElem.textContent = `Bs. ${rates.euro.toFixed(2)}`;
+            binanceRateElem.textContent = `Bs. ${rates.binance.toFixed(2)}`;
+            lastUpdatedElem.textContent = `Tasas de ${localStorage.getItem('lastUpdated') || 'desconocida'}`;
+            calculateConversion();
+        }
+
+        // Lógica de la calculadora de conversión.
+        function calculateConversion() {
+            const amount = parseFloat(amountInput.value);
+            if (isNaN(amount) || amount <= 0) {
+                resultBox.textContent = `Resultado: Bs. 0.00`;
+                return;
+            }
+
+            const activeToggle = document.querySelector('.toggle-btn.active').dataset.to;
+
+            let convertedValue;
+            let currencySymbol;
+
+            // Se asume el dólar como moneda de referencia para la conversión.
+            if (activeToggle === 'Bs') {
+                convertedValue = amount * rates.dolar;
+                currencySymbol = 'Bs.';
+                resultBox.classList.remove('bg-green-500');
+                resultBox.classList.add('bg-blue-500');
+            } else {
+                convertedValue = amount / rates.dolar;
+                currencySymbol = '$';
+                resultBox.classList.remove('bg-blue-500');
+                resultBox.classList.add('bg-green-500');
+            }
+
+            resultBox.textContent = `Resultado: ${currencySymbol} ${convertedValue.toFixed(2)}`;
+        }
+
+        // --- Eventos ---
+        // Maneja el clic en los botones de "A Bolívares" y "Desde Bolívares".
+        toggleButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggleButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                calculateConversion();
+            });
+        });
+
+        // Llama a la función de cálculo cada vez que el valor del input cambia.
+        amountInput.addEventListener('input', calculateConversion);
+
+        // Inicia el proceso de obtención de tasas al cargar la página.
+        fetchRates();
+    </script>
+</body>
+</html>
